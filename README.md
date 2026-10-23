@@ -1,6 +1,6 @@
 # breketek-encoding
 
-A Python CLI for encoding and decoding text using multiple methods, including **breketek** — a word-level substitution cipher powered by [Sastrawi](https://github.com/har07/PySastrawi) Indonesian stemming and [NLTK](https://www.nltk.org/) tokenization.
+A Python CLI for encoding and decoding text using multiple methods, including **breketek** — a word-level substitution cipher powered by [NLTK](https://www.nltk.org/) tokenization, with optional [Sastrawi](https://github.com/har07/PySastrawi) Indonesian stemming.
 
 Inspired by the split-key encryption edge cases discussed in `docs.md` (UU ITE Bug #002): when a message and its meaning live in different places, who bears the burden of proving what it says?
 
@@ -29,6 +29,8 @@ make setup
 make encode TEXT="Prabowo gitu siapa ya merdeka"
 # → Prabowoketek gitutek siapatek yaketek merdekatek
 
+# (add --stem to reduce words to roots first; lossy)
+
 # 4. Decode it back
 make decode TEXT="Prabowoketek gitutek siapatek yaketek merdekatek"
 # → Prabowo gitu siapa ya merdeka
@@ -40,7 +42,14 @@ make decode TEXT="Prabowoketek gitutek siapatek yaketek merdekatek"
 
 ### `breketek` (default)
 
-Word-level substitution cipher using **Sastrawi** for Indonesian stemming and **NLTK** for tokenization. Each word is reduced to its root form, then suffixed with `tek` or `ketek` in alternating cadence — mirroring the *wowo-breketek* speech style.
+Word-level substitution cipher using **NLTK** for tokenization. Each word is suffixed with `tek` or `ketek` in a fixed cadence — mirroring the *wowo-breketek* speech style. Optionally, **Sastrawi** can reduce words to their Indonesian root form first (`--stem`).
+
+```
+berlari ke pantai bersama teman
+→ berlariketek ketek pantaitek bersamaketek temantek
+```
+
+With `--stem`:
 
 ```
 berlari ke pantai bersama teman
@@ -48,11 +57,11 @@ berlari ke pantai bersama teman
 ```
 
 **Behavior:**
-- Inflected Indonesian words are stemmed before encoding (`berlari` → `lari`)
-- Every 3rd word gets `ketek`, the rest get `tek`
+- Words are kept exactly as written by default; pass `--stem` to reduce them to roots first (`berlari` → `lari`)
+- Every 3rd word gets `ketek`, the rest get `tek`; decoding strips exactly the suffix expected at each word position, so words ending in `ke` survive
 - Punctuation, numbers, and whitespace pass through unchanged
-- Capitalisation of the first letter is preserved
-- **Encoding is intentionally lossy** — decoding returns the stemmed root, not the original inflected form. This is stable: `decode(encode(x))` is idempotent.
+- Capitalisation is preserved exactly (`KawalIbam`, `UU`, `KOST`)
+- **Lossless by default** — `decode(encode(x)) == x`. With `--stem` encoding is lossy: decoding returns the stemmed root, not the original inflected form.
 
 ### `rot13`
 
@@ -172,7 +181,7 @@ When multiple input sources are provided, the tool uses this order of precedence
 
 ## Real-world example
 
-The following is an example of the type of content discussed in `docs.md` — text that could be considered defamatory under UU ITE Pasal 27 Ayat (3), where the meaning depends on how and by whom it is read. This demonstrates how breketek encoding creates the *split-key ambiguity* from Bug #002: the encoded form is meaningless without the decoder, and the decoded form returns stemmed roots rather than the original inflected words.
+The following is an example of the type of content discussed in `docs.md` — text that could be considered defamatory under UU ITE Pasal 27 Ayat (3), where the meaning depends on how and by whom it is read. This demonstrates how breketek encoding creates the *split-key ambiguity* from Bug #002: the encoded form is meaningless without the decoder, and the decoded form returns the original text exactly (or stemmed roots, if encoded with `--stem`).
 
 **Original text (plaintext):**
 
@@ -195,29 +204,27 @@ make encode FILE=example/subfomo_rahmat_wibowo.txt
 ```
 
 ```
-Subfomoketek khusustek buattek ngomonginketek Rahmattek Wibowotek: kumpulketek buktitek
-jahattek, perilakuketek, progresstek hukumtek danketek bagaitek. Rahmattek Wibowoketek
-adalahtek alumnitek Itbketek, masuktek Itbtek diketek tahuntek 2019. Ditek tahunketek
-2023, diatek pecattek Awsketek dantek ditek tahunketek 2026 diatek lepastek kendaliketek
-dantek terortek orangketek2 yangtek tidaktek pahamketek dengantek. Bagitek yangketek
-miliktek buktitek kaitketek kasustek Rahmattek Wibowoketek, bisatek kirimtek caraketek
-Dmtek ketek akunketek fomotek dengantek usernameketek *@awastek* atautek dipostketek ditek
-subfomotek iniketek. Buktitek upatek Screenketek Recordtek lebihtek kuatketek ditek adiltek
-bandingketek hanyatek dartek screenshootketek
+Subfomoketek khusustek buattek ngomonginketek Rahmattek Wibowotek: kumpulanketek buktitek
+kejahatantek, perilakuketek, progresstek hukumtek danketek sebagainyatek. Rahmattek
+Wibowoketek adalahtek alumnitek ITBketek, masuktek ITBtek diketek tahuntek 2019. Ditek
+tahunketek 2023, diatek dipecattek AWSketek dantek ditek tahunketek 2026 diatek lepastek
+kendaliketek dantek menerortek orangketek2 yangtek tidaktek sepahamketek dengannyatek.
+Bagitek yangketek memilikitek buktitek terkaitketek kasustek Rahmattek Wibowoketek,
+bisatek dikirimtek secaraketek DMtek ketek akunketek fomotek dengantek usernameketek
+*@awastek* atautek dipostketek ditek subfomotek iniketek. Buktitek berupatek Screenketek
+Recordtek lebihtek kuatketek ditek pengadilantek dibandingketek hanyatek sekedartek
+screenshootketek
 ```
 
-**Decoded back (stem form — lossy by design):**
+**Decoded back (lossless — identical to the original):**
 
 ```
-Subfomo khusus buat ngomongin Rahmat Wibowo: kumpul bukti jahat, perilaku, progress
-hukum dan bagai. Rahmat Wibowo adalah alumni Itb, masuk Itb di tahun 2019. Di tahun
-2023, dia pecat Aws dan di tahun 2026 dia lepas kendali dan teror orang2 yang tidak
-paham dengan. Bagi yang milik bukti kait kasus Rahmat Wibowo, bisa kirim cara Dm
-akun fomo dengan username *@awas* atau dipost di subfomo ini. Bukti upa Screen Record
-lebih kuat di adil banding hanya dar screenshoot
+Subfomo khusus buat ngomongin Rahmat Wibowo: kumpulan bukti kejahatan, perilaku, progress hukum dan sebagainya. Rahmat Wibowo adalah alumni ITB, masuk ITB di tahun 2019. Di tahun 2023, dia dipecat AWS dan di tahun 2026 dia lepas kendali dan meneror orang2 yang tidak sepaham dengannya. Bagi yang memiliki bukti terkait kasus Rahmat Wibowo, bisa dikirim secara DM ke akun fomo dengan username *@awas* atau dipost di subfomo ini. Bukti berupa Screen Record lebih kuat di pengadilan dibanding hanya sekedar screenshoot
 ```
 
-This illustrates Bug #002 in practice: the encoded form distributed on a public forum has no legible content without the breketek decoder. The decoded form returns stemmed roots (`kejahatan` → `jahat`, `dipecat` → `pecat`, `pengadilan` → `adil`), meaning no single version of the text is the complete, original message. Under UU ITE, the question of whether this constitutes distributing defamatory *Informasi Elektronik* depends on which layer — encoded or decoded — the court treats as the operative text.
+**With `--stem` (lossy):** words are reduced to roots (`kejahatan` → `jahat`, `dipecat` → `pecat`, `pengadilan` → `adil`) and the original cannot be recovered.
+
+This illustrates Bug #002 in practice: the encoded form distributed on a public forum has no legible content without the breketek decoder. In stem mode the decoded form returns roots only, so no single version of the text is the complete, original message; in the default mode the decoder restores it fully. Under UU ITE, the question of whether this constitutes distributing defamatory *Informasi Elektronik* depends on which layer — encoded or decoded — the court treats as the operative text.
 
 ---
 
@@ -226,7 +233,7 @@ This illustrates Bug #002 in practice: the encoded form distributed on a public 
 ### CLI directly
 
 ```bash
-.venv/bin/python breketek.py <command> <encoder> [text] [-f FILE]
+.venv/bin/python breketek.py <command> <encoder> [text] [-f FILE] [--stem]   # --stem: encode breketek only
 ```
 
 | Command | Description |
@@ -296,7 +303,7 @@ make list
 
 ## Tests
 
-42 end-to-end tests covering all encoders, all input modes, and error handling:
+46 end-to-end tests covering all encoders, all input modes, and error handling:
 
 ```bash
 make test
@@ -305,11 +312,11 @@ make test
 ```
 tests/test_e2e.py::TestList::test_shows_all_encoders        PASSED
 tests/test_e2e.py::TestBrckEncoder::test_encode_appends_tek_suffix  PASSED
-tests/test_e2e.py::TestBrckEncoder::test_encode_stems_inflected_words PASSED
+tests/test_e2e.py::TestBrckEncoder::test_encode_stem_flag_stems_inflected_words PASSED
 tests/test_e2e.py::TestBrckEncoder::test_round_trip_is_stable        PASSED
 tests/test_e2e.py::TestInputModes::test_file_breketek_round_trip     PASSED
 ...
-42 passed in ~6s
+46 passed in ~6s
 ```
 
 Test groups:
@@ -340,7 +347,7 @@ breketek-encoding/
 ├── example/
 │   └── subfomo_rahmat_wibowo.txt  # real-world UU ITE example text
 ├── tests/
-│   └── test_e2e.py      # 42 end-to-end tests
+│   └── test_e2e.py      # 46 end-to-end tests
 ├── docs.md              # UU ITE encryption edge-case article (inspiration)
 └── LICENSE
 ```
@@ -351,7 +358,7 @@ breketek-encoding/
 
 | Package | Purpose |
 |---------|---------|
-| [PySastrawi](https://github.com/har07/PySastrawi) | Indonesian stemmer — reduces inflected words to root form |
+| [PySastrawi](https://github.com/har07/PySastrawi) | Indonesian stemmer — used only with `--stem` |
 | [NLTK](https://www.nltk.org/) | `RegexpTokenizer` — splits text into word and non-word tokens |
 | [pytest](https://pytest.org) | Test runner |
 
@@ -368,7 +375,7 @@ python3 -m venv .venv
 
 The `breketek` encoder takes its name and style from *wowo-breketek* — an Indonesian internet speech pattern where words are suffixed with `tek` or `ketek`, popularised by references to figures like Prabowo ("prabowotek"). The encoder uses Sastrawi to strip Indonesian morphological affixes before applying the suffix, making the output more linguistically grounded than a simple string append.
 
-The project was also inspired by `docs.md`, which analyses two legal edge cases in UU ITE (Indonesia's electronic information law): foreign-language ambiguity (Bug #001) and split-key encryption (Bug #002). The breketek encoder embodies Bug #002 — a message whose meaning requires a separate key (the decoder) to recover, and which is lossy by design.
+The project was also inspired by `docs.md`, which analyses two legal edge cases in UU ITE (Indonesia's electronic information law): foreign-language ambiguity (Bug #001) and split-key encryption (Bug #002). The breketek encoder embodies Bug #002 — a message whose meaning requires a separate key (the decoder) to recover, and which is lossy when `--stem` is used.
 
 ---
 

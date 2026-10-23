@@ -75,10 +75,14 @@ class TestBrckEncoder:
         out = encode("breketek", "prabowo gitu siapa")
         assert out == "prabowoketek gitutek siapatek"
 
-    def test_encode_stems_inflected_words(self):
+    def test_encode_keeps_inflected_words_by_default(self):
+        out = encode("breketek", "berlari bersama")
+        assert out == "berlariketek bersamatek"
+
+    def test_encode_stem_flag_stems_inflected_words(self):
         # berlari → stem lari → lariketek
         # bersama → stem sama → samatek
-        out = encode("breketek", "berlari bersama")
+        out = cli("encode", "breketek", "--stem", "berlari bersama").stdout.strip()
         assert out == "lariketek samatek"
 
     def test_encode_preserves_capitalisation(self):
@@ -138,10 +142,22 @@ class TestBrckEncoder:
         twice = decode("breketek", encode("breketek", once))
         assert once == twice
 
-    def test_round_trip_inflected_returns_stem(self):
-        # berlari → encodes as lariketek → decodes as lari (stem, not berlari)
+    def test_round_trip_inflected_is_lossless(self):
         out = decode("breketek", encode("breketek", "berlari"))
-        assert out == "lari"
+        assert out == "berlari"
+
+    def test_round_trip_words_ending_in_ke(self):
+        # 'ke' + 'tek' must not be mistaken for the 'ketek' suffix
+        text = "ke ke ke ke Exke"
+        assert decode("breketek", encode("breketek", text)) == text
+
+    def test_round_trip_stem_flag_returns_stem(self):
+        enc = cli("encode", "breketek", "--stem", "berlari").stdout.strip()
+        assert decode("breketek", enc) == "lari"
+
+    def test_round_trip_mixed_case_and_digits(self):
+        text = "Kawal KawalIbam UU bales2 KOST."
+        assert decode("breketek", encode("breketek", text)) == text
 
 
 # ---------------------------------------------------------------------------

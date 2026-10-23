@@ -53,13 +53,23 @@ def _stem(word: str) -> str:
     return word.lower()
 
 
-def _add_suffix(stem: str, index: int) -> str:
-    """Append 'ketek' every third word, 'tek' otherwise — mirrors wowo-breketek cadence."""
-    suffix = "ketek" if index % 3 == 0 else "tek"
-    return stem + suffix
+def _suffix_for(index: int) -> str:
+    """'ketek' every third word, 'tek' otherwise — mirrors wowo-breketek cadence."""
+    return "ketek" if index % 3 == 0 else "tek"
 
 
-def _strip_suffix(token: str) -> str:
+def _strip_suffix(token: str, index: int | None = None) -> str:
+    """Remove the suffix from a token.
+
+    When the word position is known, strip exactly the suffix the encoder
+    would have added there. This keeps words whose stem ends in 'ke' (e.g.
+    'ke' + 'tek') from losing their last letters. Falls back to a regex
+    for hand-edited text where the cadence no longer matches.
+    """
+    if index is not None:
+        suffix = _suffix_for(index)
+        if token.lower().endswith(suffix):
+            return token[: -len(suffix)]
     return _SUFFIX_RE.sub("", token)
 
 
@@ -75,16 +85,18 @@ def _preserve_case(original: str, result: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def breketek_encode(text: str) -> str:
-    tokens = _tokenize(text)
+def breketek_encode(text: str, stem: bool = False) -> str:
+    """Append tek/ketek to every word.
+
+    By default words are kept as written, so decode(encode(x)) == x.
+    Pass stem=True to reduce words to their root first (lossy).
+    """
     out: list[str] = []
     word_idx = 0
-    for tok in tokens:
+    for tok in _tokenize(text):
         if _WORD_RE.match(tok):
-            stem = _stem(tok)
-            encoded = _add_suffix(stem, word_idx)
-            encoded = _preserve_case(tok, encoded)
-            out.append(encoded)
+            word = _preserve_case(tok, _stem(tok)) if stem else tok
+            out.append(word + _suffix_for(word_idx))
             word_idx += 1
         else:
             out.append(tok)
@@ -92,12 +104,12 @@ def breketek_encode(text: str) -> str:
 
 
 def breketek_decode(text: str) -> str:
-    tokens = _tokenize(text)
     out: list[str] = []
-    for tok in tokens:
+    word_idx = 0
+    for tok in _tokenize(text):
         if _WORD_RE.match(tok):
-            stripped = _strip_suffix(tok.lower())
-            out.append(_preserve_case(tok, stripped))
+            out.append(_strip_suffix(tok, word_idx))
+            word_idx += 1
         else:
             out.append(tok)
     return "".join(out)
@@ -181,9 +193,10 @@ ENCODERS: dict[str, tuple] = {
 
 _DESCRIPTIONS = {
     "breketek": (
-        "Word-level substitution using Sastrawi stemmer + NLTK tokenizer.\n"
-        "             Stems each Indonesian word then appends 'tek'/'ketek'.\n"
-        "             Example: 'berlari ke pantai' → 'lariketek keтek pantaitek'\n"
+        "Word-level substitution using NLTK tokenizer.\n"
+        "             Appends 'tek'/'ketek' to each word; lossless by default.\n"
+        "             With --stem, Sastrawi reduces words to roots first (lossy).\n"
+        "             Example: 'berlari ke pantai' → 'berlariketek ketek pantaitek'\n"
         f"             Sastrawi: {'✓' if SASTRAWI_OK else '✗ (pip install PySastrawi)'}"
         f"  NLTK: {'✓' if NLTK_OK else '✗ (pip install nltk)'}"
     ),
@@ -207,15 +220,15 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="""
 examples:
   breketek encode breketek "berlari ke pantai bersama teman"
-  breketek decode breketek "lariketek keтek pantaitek bersamaketek temantek"
+  breketek decode breketek "berlariketek ketek pantaitek bersamaketek temantek"
+  breketek encode breketek --stem "berlari ke pantai bersama teman"
   echo "rahasia negara" | breketek encode rot13
   breketek encode base64 "UU ITE bug #002"
   breketek list
 
 note:
-  breketek encoder is lossy — decoding returns stemmed (root) forms,
-  not the original inflected words. This is intentional: it mirrors
-  the split-key ambiguity discussed in docs.md.
+  breketek is lossless by default (decode(encode(x)) == x). With --stem
+  it is lossy: decoding returns root forms, not the original words.
         """,
     )
 
@@ -239,6 +252,12 @@ note:
             metavar="PATH",
             help="read input from a file instead of inline text or stdin",
         )
+        if cmd == "encode":
+            p.add_argument(
+                "--stem",
+                action="store_true",
+                help="breketek only: reduce words to root form first (lossy)",
+            )
 
     sub.add_parser("list", help="list all available encoders with their status")
 
@@ -280,9 +299,12 @@ def main() -> None:
 
     try:
         if args.command == "encode":
-            print(encode_fn(text))
+            result = encode_fn(text, stem=True) if args.stem and args.encoder == "breketek" else encode_fn(text)
         else:
-            print(decode_fn(text))
+            result = decode_fn(text)
+        # Don't pile an extra newline onto input that already ended with one,
+        # so file round-trips stay byte-identical.
+        print(result, end="" if text.endswith("\n") else "\n")
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
